@@ -1,4 +1,6 @@
 dataset
-
+resources
 # pycache
 __pycache__/
+
+outputs

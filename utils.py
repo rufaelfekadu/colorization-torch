@@ -195,7 +195,7 @@ import torch
 import numpy as np
 from PIL import Image
 
-def preprocess(images):
+def preprocess_train(images):
     '''Preprocess
     Args: 
       image_paths: List of paths to images (N)
@@ -205,7 +205,7 @@ def preprocess(images):
       prior_boost_nongray: (N * H/4 * W/4 * 1) 
     '''
 
-    data = torch.stack(images).permute(0, 2, 3, 1).float() / 255.0  # Shape: N x H x W x 3
+    data = torch.stack(images).permute(0, 2, 3, 1).float()   # Shape: N x H x W x 3
     N, H, W, C = data.shape
     # # rgb2lab
     img_lab = color.rgb2lab(data.numpy())  # Convert to NumPy for rgb2lab
@@ -240,7 +240,17 @@ def preprocess(images):
 
     return data_l, gt_ab_313, prior_boost_nongray
 
+def preprocess_test(images):
+    data = torch.stack(images).permute(0, 2, 3, 1) # Shape: N x H x W x 3
 
+    # # rgb2lab
+    img_lab = color.rgb2lab(data.numpy())  # Convert to NumPy for rgb2lab
+    img_l = torch.from_numpy(img_lab[:, :, :, 0:1])  # Convert back to tensor
+
+    # scale img_l to [-50, 50]
+    data_l = img_l - 50
+
+    return img_l, data
 
 if __name__ == "__main__":
     #  loop through the dataset and preprocess
@@ -250,5 +260,5 @@ if __name__ == "__main__":
     image_paths = [x.strip() for x in image_paths]
     
     imgs = [Image.open(img_path).convert('RGB') for img_path in image_paths[:4]]
-    data_l, gt_ab_313, prior_boost_nongray = preprocess(imgs)
+    data_l, gt_ab_313, prior_boost_nongray = preprocess_train(imgs)
     print(data_l.shape, gt_ab_313.shape, prior_boost_nongray.shape)

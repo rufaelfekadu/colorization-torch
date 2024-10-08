@@ -1,6 +1,10 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
+import os
+from skimage import color
+from skimage.transform import resize
 
 class Conv2dLayer(nn.Module):
     def __init__(self, input_channels, output_channels, kernel_size=3, stride=1, dilation=1, relu=True, weight_decay=None):
@@ -147,6 +151,38 @@ class ECCVGenerator(BaseColor):
         # out_reg = self.model_out(self.softmax(conv8_3))
  
         return conv8_3.permute(0, 2, 3, 1)
+    
+    @staticmethod 
+    def decode(data_l, conv8_313, rebalance=1):
+        """
+        Args:
+            data_l   : [1, height, width, 1]
+            conv8_313: [1, height/4, width/4, 313]
+        Returns:
+            img_rgb  : [height, width, 3]
+        """
+        data_l = data_l + 50
+        _, height, width, _ = data_l.shape
+        data_l = data_l[0, :, :, :]
+        conv8_313 = conv8_313[0, :, :, :]
+        enc_dir = './resources'
+        conv8_313_rh = conv8_313 * rebalance
+        class8_313_rh = softmax(conv8_313_rh)
+
+        cc = np.load(os.path.join(enc_dir, 'pts_in_hull.npy'))
+        
+        data_ab = np.dot(class8_313_rh, cc)
+        data_ab = resize(data_ab, (height, width))
+        img_lab = np.concatenate((data_l, data_ab), axis=-1)
+        img_rgb = color.lab2rgb(img_lab)
+
+        return img_rgb
+
+def softmax(x):
+    """Compute softmax values for each sets of scores in x."""
+    e_x = np.exp(x - np.expand_dims(np.max(x, axis=-1), axis=-1))
+    return e_x / np.expand_dims(e_x.sum(axis=-1), axis=-1) # only difference
+
 
 def eccv16(pretrained=True):
 	model = ECCVGenerator()
