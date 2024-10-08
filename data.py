@@ -5,14 +5,14 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 from torchvision import transforms
-from .utils import preprocess
+from utils import preprocess
 
 class CustomDataset(Dataset):
     """Custom Dataset for image loading and processing using PyTorch operations."""
 
     def __init__(self, img_path,  transform=None):
         self.img_path = img_path
-
+        self.image_size = 224
         # Read and store image paths from the dataset file
         with open(self.img_path, 'r') as f:
             self.record_list = [line.strip() for line in f]
@@ -43,3 +43,11 @@ def collate_fn(batch):
     batch = [image for image in batch]
     return preprocess(batch)
 
+if __name__ == "__main__":
+    img_path = 'resources/train.txt'
+    dataset = CustomDataset(img_path)
+    train_loader = torch.utils.data.DataLoader(dataset, batch_size=32, shuffle=True, num_workers=4, collate_fn=collate_fn)
+    for data in train_loader:
+        data_l, gt_ab_313, prior_boost_nongray = data
+        print(data_l.shape, gt_ab_313.shape, prior_boost_nongray.shape)
+        break

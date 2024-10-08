@@ -1,7 +1,8 @@
 import torch
 from torch import nn
-from model import ColorizeNet, ColorizeLoss
+from model import ColorizeNet, ColorizeLoss, eccv16
 from data import CustomDataset, collate_fn
+from tqdm import tqdm
 
 class SimpleTrainer:
     def __init__(self, model, optimizer, criterion, train_loader, device):
@@ -13,23 +14,25 @@ class SimpleTrainer:
         # self.val_loader = val_loader
         # self.test_loader = test_loader
         self.device = device
+        self.epoch = 0
 
     def train(self, num_epochs):
         self.model.to(self.device)
         for epoch in range(num_epochs):
             self.model.train()
             running_loss = 0.0
-            for data in self.train_loader:
+            for data in tqdm(self.train_loader, leave=False):
                 data_l, gt_ab_313, prior_boost_nongray = data
                 data_l, gt_ab_313, prior_boost_nongray = data_l.to(self.device), gt_ab_313.to(self.device), prior_boost_nongray.to(self.device)
                 self.optimizer.zero_grad()
                 outputs = self.model(data_l)
-                loss = self.criterion(outputs, prior_boost_nongray, gt_ab_313)
+                _, loss = self.criterion(outputs, prior_boost_nongray, gt_ab_313)
                 loss.backward()
                 self.optimizer.step()
                 running_loss += loss.item()
             print(f"Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(self.train_loader)}")
             # save checkpoint
+            self.epoch += 1
             self.save(f'checkpoint.pth')
 
     # def val(self):
@@ -59,7 +62,8 @@ class SimpleTrainer:
     def save(self, path='model.pth'):
         to_save = {
             'state_dict': self.model.state_dict(),
-            'optimizer': self.optimizer.state_dict()
+            'optimizer': self.optimizer.state_dict(),
+            'epoch': self.epoch,
         }
         torch.save(to_save, path)
     
@@ -70,15 +74,14 @@ class SimpleTrainer:
 
 def main():
     # build model
-    model = ColorizeNet()
+    model = eccv16(pretrained=True)
     # build optimizer
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
     # build loss
     criterion = ColorizeLoss(batch_size=32)
     # build data loaders
-    common_params = {'image_size': 224, 'batch_size': 32}
-    dataset_params = {'path': 'path/to/file.txt'}
-    train_set = CustomDataset(common_params=common_params, dataset_params=dataset_params)
+    img_paths = 'resources/train.txt'
+    train_set = CustomDataset(img_paths)
     train_loader = torch.utils.data.DataLoader(train_set, batch_size=32, shuffle=True, num_workers=4, collate_fn=collate_fn)
     
     trainer = SimpleTrainer(model, optimizer, criterion, train_loader, device='cuda')

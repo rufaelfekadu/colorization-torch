@@ -2,6 +2,8 @@ import torch
 import os
 import sklearn.neighbors as nn
 import numpy as np
+from skimage import color
+
 
 
 def check_value(inds, val):
@@ -93,9 +95,8 @@ class NNEncode():
 
         (dists, inds) = self.nbrs.kneighbors(pts_flt.numpy())
 
-        wts = torch.exp(-torch.tensor(dists) ** 2 / (2 * self.sigma ** 2))
+        wts = torch.exp(-torch.tensor(dists, dtype=torch.float32) ** 2 / (2 * self.sigma ** 2))
         wts = (wts / torch.sum(wts, dim=1).unsqueeze(1).expand(P, self.NN))
-        wts = torch.tensor(wts, dtype=torch.float32)
 
         self.pts_enc_flt[self.p_inds, torch.tensor(inds, dtype=self.p_inds.dtype)] = wts
         pts_enc_nd = unflatten_2d_array(self.pts_enc_flt, pts_nd, axis=axis)
@@ -143,7 +144,7 @@ class PriorFactor():
         self.verbose = verbose
 
         # empirical prior probability
-        self.prior_probs = torch.tensor(np.load(priorFile), )
+        self.prior_probs = torch.tensor(np.load(priorFile) )
 
         # define uniform probability
         self.uni_probs = torch.zeros_like(self.prior_probs)
@@ -186,7 +187,6 @@ def _prior_boost(gt_ab_313):
 
     gt_ab_313 = torch.transpose(gt_ab_313, 1, 3)
     prior_boost = pc.forward(gt_ab_313, axis=1)
-    breakpoint()
     prior_boost = torch.transpose(prior_boost, 1, 3)
     return prior_boost
 
@@ -194,9 +194,8 @@ import warnings
 import torch
 import numpy as np
 from PIL import Image
-from skimage import color  # Ensure you have this for RGB to LAB conversion
 
-def preprocess(image_paths):
+def preprocess(images):
     '''Preprocess
     Args: 
       image_paths: List of paths to images (N)
@@ -205,16 +204,10 @@ def preprocess(image_paths):
       gt_ab_313: ab discrete channel batch (N * H/4 * W/4 * 313)
       prior_boost_nongray: (N * H/4 * W/4 * 1) 
     '''
-    warnings.filterwarnings("ignore")
 
-    # Load images and convert to tensor
-    images = [Image.open(img_path).convert('RGB') for img_path in image_paths]
-    data = torch.stack([torch.from_numpy(np.array(img)) for img in images])  # Shape: N x H x W x 3
-    data = data.float() / 255.0  # Normalize to [0, 1]
-
-    N, H, W, _ = data.shape
-
-    # rgb2lab
+    data = torch.stack(images).permute(0, 2, 3, 1).float() / 255.0  # Shape: N x H x W x 3
+    N, H, W, C = data.shape
+    # # rgb2lab
     img_lab = color.rgb2lab(data.numpy())  # Convert to NumPy for rgb2lab
 
     # slice
@@ -251,6 +244,11 @@ def preprocess(image_paths):
 
 if __name__ == "__main__":
     #  loop through the dataset and preprocess
-    image_paths = ['datasets/flower.jpg', 'datasets/flower2.jpg']
-    data_l, gt_ab_313, prior_boost_nongray = preprocess(image_paths)
+    # image_paths = ['datasets/flower.jpg', 'datasets/flower2.jpg']
+    with open('resources/train.txt', 'r') as f:
+        image_paths = f.readlines()
+    image_paths = [x.strip() for x in image_paths]
+    
+    imgs = [Image.open(img_path).convert('RGB') for img_path in image_paths[:4]]
+    data_l, gt_ab_313, prior_boost_nongray = preprocess(imgs)
     print(data_l.shape, gt_ab_313.shape, prior_boost_nongray.shape)
